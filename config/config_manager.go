@@ -16,7 +16,7 @@ type Manager struct {
 }
 
 func NewManager(configPath string) (*Manager, error) {
-	// Устанавливаем значения по умолчанию
+	// Set default values
 
 	viper.SetConfigFile(configPath)
 	viper.AutomaticEnv()

@@ -60,7 +60,7 @@ func HandleChatGPTStreamResponse(bot *tgbotapi.BotAPI, client *openai.Client, me
 		if apiErr, ok := err.(*openai.APIError); ok && apiErr.HTTPStatusCode == 429 {
 			if attempt == maxRetries {
 				log.Printf("Max retries exceeded for 429 error: %v", err)
-				msg := tgbotapi.NewMessage(message.Chat.ID, "Превышен лимит запросов. Попробуйте позже.")
+				msg := tgbotapi.NewMessage(message.Chat.ID, "Request limit exceeded. Please try again later.")
 				bot.Send(msg)
 				return ""
 			}

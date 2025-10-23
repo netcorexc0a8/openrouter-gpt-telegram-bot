@@ -15,8 +15,8 @@ type UsageTracker struct {
 	CurrentStream   *openai.ChatCompletionStream
 	Usage           *UserUsage
 	History         History
-	UsageMu         sync.Mutex `json:"-"` // Мьютекс для синхронизации доступа к Usage
-	FileMu          sync.Mutex `json:"-"` // Мьютекс для синхронизации доступа к файлу
+	UsageMu         sync.Mutex `json:"-"` // Mutex for synchronizing access to Usage
+	FileMu          sync.Mutex `json:"-"` // Mutex for synchronizing access to the file
 }
 
 type Message struct {

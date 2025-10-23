@@ -182,17 +182,17 @@ func (ut *UsageTracker) loadUsage() error {
 	return nil
 }
 
-// AddCost Добавляет стоимость к текущему использованию и сохраняет данные
+// AddCost Adds cost to current usage and saves data
 func (ut *UsageTracker) AddCost(cost float64) {
 	ut.UsageMu.Lock()
 
 	today := time.Now().Format("2006-01-02")
-	if ut.Usage.UsageHistory.ChatCost == nil { // Добавлена проверка на nil
+	if ut.Usage.UsageHistory.ChatCost == nil { // Added nil check
 		ut.Usage.UsageHistory.ChatCost = make(map[string]float64)
 	}
 	ut.Usage.UsageHistory.ChatCost[today] += cost
 
-	ut.UsageMu.Unlock() // Переместил Unlock после вызова saveUsage()
+	ut.UsageMu.Unlock() // Moved Unlock after saveUsage() call
 
 	if err := ut.saveUsage(); err != nil {
 		log.Printf("Failed to save usage after adding cost for user %s: %v", ut.UserID, err)
@@ -215,7 +215,7 @@ func (ut *UsageTracker) GetCurrentCost(period string) float64 {
 		cost, err = calculateCostForMonth(ut.Usage.UsageHistory.ChatCost, today)
 		if err != nil {
 			log.Printf("Error calculating monthly cost for user %s: %v", ut.UserID, err)
-			return 0.0 // Или другое значение по умолчанию
+			return 0.0 // Or another default value
 		}
 	case "total":
 		cost = calculateTotalCost(ut.Usage.UsageHistory.ChatCost)
@@ -238,7 +238,7 @@ func calculateCostForDay(chatCost map[string]float64, day string) float64 {
 // calculateCostForMonth calculates the cost for the current month from usage history
 func calculateCostForMonth(chatCost map[string]float64, today string) (float64, error) {
 	cost := 0.0
-	month := today[:7] // Получаем год и месяц в формате "YYYY-MM"
+	month := today[:7] // Get year and month in "YYYY-MM" format
 
 	for date, dailyCost := range chatCost {
 		if strings.HasPrefix(date, month) {

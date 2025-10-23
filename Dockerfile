@@ -1,19 +1,19 @@
-# Используем официальный образ Golang как базовый
+# Use the official Golang image as the base
 FROM golang:1.23.4
 
-# Устанавливаем рабочую директорию внутри контейнера
+# Set the working directory inside the container
 WORKDIR /app
 
-# Копируем go.mod и go.sum и устанавливаем зависимости
+# Copy go.mod and go.sum and install dependencies
 COPY go.mod ./
 COPY go.sum ./
 RUN go mod download
 
-# Копируем остальные файлы проекта
+# Copy the rest of the project files
 COPY . .
 
-# Собираем приложение
+# Build the application
 RUN go build -o /openrouter-gpt-telegram-bot
 
-# Указываем команду для запуска приложения
+# Specify the command to run the application
 CMD ["/openrouter-gpt-telegram-bot"]

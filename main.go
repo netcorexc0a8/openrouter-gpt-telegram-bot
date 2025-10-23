@@ -12,7 +12,7 @@ import (
 	"strconv"
 )
 
-// containsInt64 проверяет, содержит ли срез int64 заданное значение.
+// containsInt64 checks if an int64 slice contains a given value.
 func containsInt64(slice []int64, val int64) bool {
 	for _, item := range slice {
 		if item == val {
@@ -155,7 +155,7 @@ botUsername := bot.Self.UserName
 				}
 			}(userStats)
 		} else if update.Message.Chat.IsGroup() || update.Message.Chat.IsSuperGroup() {
-			// Проверяем, если список разрешенных групп не пуст, и текущий ChatID не в списке, игнорируем сообщение.
+			// Checks if the list of allowed groups is not empty and the current ChatID is not in the list, ignores the message.
 			if len(conf.AllowedGroupIDs) > 0 && !containsInt64(conf.AllowedGroupIDs, update.Message.Chat.ID) {
 				continue
 			}

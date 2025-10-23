@@ -212,7 +212,7 @@ func printConfig(c *Config) {
 	for i := 0; i < v.NumField(); i++ {
 		field := v.Field(i)
 		fieldName := t.Field(i).Name
-
+		
 		if field.Kind() == reflect.Struct {
 			fmt.Printf("%s:\n", fieldName)
 			printStructFields(field)
