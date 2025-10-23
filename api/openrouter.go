@@ -73,7 +73,8 @@ func HandleChatGPTStreamResponse(bot *tgbotapi.BotAPI, client *openai.Client, me
 			fmt.Println("\nStream finished, response ID:", responseID)
 			user.AddMessage(openai.ChatMessageRoleUser, message.Text)
 			user.AddMessage(openai.ChatMessageRoleAssistant, messageText)
-			editMsg := tgbotapi.NewEditMessageText(message.Chat.ID, lastMessageID, messageText)
+			editMsg := tgbotapi.NewEditMessageText(message.Chat.ID, lastMessageID, tgbotapi.EscapeText(tgbotapi.ModeMarkdownV2, messageText))
+			editMsg.ParseMode = tgbotapi.ModeMarkdownV2
 			_, err := bot.Send(editMsg)
 			if err != nil {
 				log.Printf("Failed to edit message: %v", err)
@@ -91,7 +92,8 @@ func HandleChatGPTStreamResponse(bot *tgbotapi.BotAPI, client *openai.Client, me
 		}
 		if lastMessageID == 0 {
 			messageText += response.Choices[0].Delta.Content
-			msg := tgbotapi.NewMessage(message.Chat.ID, messageText)
+			msg := tgbotapi.NewMessage(message.Chat.ID, tgbotapi.EscapeText(tgbotapi.ModeMarkdownV2, messageText))
+			msg.ParseMode = tgbotapi.ModeMarkdownV2
 			sentMsg, err := bot.Send(msg)
 			if err != nil {
 				//log.Printf("Failed to send message: %v", err)
@@ -103,7 +105,8 @@ func HandleChatGPTStreamResponse(bot *tgbotapi.BotAPI, client *openai.Client, me
 			if len(response.Choices) > 0 {
 				messageText += response.Choices[0].Delta.Content
 				if time.Since(lastSentTime) >= 800*time.Millisecond {
-					editMsg := tgbotapi.NewEditMessageText(message.Chat.ID, lastMessageID, messageText)
+					editMsg := tgbotapi.NewEditMessageText(message.Chat.ID, lastMessageID, tgbotapi.EscapeText(tgbotapi.ModeMarkdownV2, messageText))
+					editMsg.ParseMode = tgbotapi.ModeMarkdownV2
 					_, err := bot.Send(editMsg)
 					if err != nil {
 						log.Printf("Failed to edit message: %v", err)
@@ -203,7 +206,8 @@ func handleChatGPTResponse(bot *tgbotapi.BotAPI, client *openai.Client, message 
 	}
 
 	answer := resp.Choices[0].Message.Content
-	msg := tgbotapi.NewMessage(message.Chat.ID, answer)
+	msg := tgbotapi.NewMessage(message.Chat.ID, tgbotapi.EscapeText(tgbotapi.ModeMarkdownV2, answer))
+	msg.ParseMode = tgbotapi.ModeMarkdownV2
 	user.AddMessage(openai.ChatMessageRoleAssistant, answer)
 	bot.Send(msg)
 	return resp.ID
