@@ -12,6 +12,16 @@ import (
 	"strconv"
 )
 
+// containsInt64 проверяет, содержит ли срез int64 заданное значение.
+func containsInt64(slice []int64, val int64) bool {
+	for _, item := range slice {
+		if item == val {
+			return true
+		}
+	}
+	return false
+}
+
 func main() {
 	err := lang.LoadTranslations("./lang/")
 	if err != nil {
@@ -30,6 +40,7 @@ func main() {
 		log.Panic(err)
 	}
 	bot.Debug = false
+botUsername := bot.Self.UserName
 
 	// Delete the webhook
 	_, err = bot.Request(tgbotapi.DeleteWebhookConfig{})
@@ -127,6 +138,7 @@ func main() {
 				}
 			}
 		} else {
+		if update.Message.Chat.IsPrivate() {
 			go func(userStats *user.UsageTracker) {
 				// Handle user message
 				if userStats.HaveAccess(conf) {
@@ -141,8 +153,39 @@ func main() {
 						log.Println(err)
 					}
 				}
-
 			}(userStats)
+		} else if update.Message.Chat.IsGroup() || update.Message.Chat.IsSuperGroup() {
+			// Проверяем, если список разрешенных групп не пуст, и текущий ChatID не в списке, игнорируем сообщение.
+			if len(conf.AllowedGroupIDs) > 0 && !containsInt64(conf.AllowedGroupIDs, update.Message.Chat.ID) {
+				continue
+			}
+
+			// Check if the bot is mentioned in group chats
+			if update.Message.Entities != nil {
+				for _, entity := range update.Message.Entities {
+					if entity.Type == "mention" && update.Message.Text[entity.Offset:entity.Offset+entity.Length] == "@"+botUsername {
+						// Extract the clean message text without the mention
+						cleanMessageText := update.Message.Text[:entity.Offset] + update.Message.Text[entity.Offset+entity.Length:]
+						update.Message.Text = cleanMessageText
+						go func(userStats *user.UsageTracker) {
+							if userStats.HaveAccess(conf) {
+								responseID := api.HandleChatGPTStreamResponse(bot, client, update.Message, conf, userStats)
+								if conf.Model.Type == "openrouter" {
+									userStats.GetUsageFromApi(responseID, conf)
+								}
+							} else {
+								msg := tgbotapi.NewMessage(update.Message.Chat.ID, lang.Translate("budget_out", conf.Lang))
+								_, err := bot.Send(msg)
+								if err != nil {
+									log.Println(err)
+								}
+							}
+						}(userStats)
+						break
+					}
+				}
+			}
+		}
 		}
 	}
 

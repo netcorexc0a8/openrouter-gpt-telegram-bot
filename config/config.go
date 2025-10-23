@@ -27,6 +27,7 @@ type Config struct {
 	UserBudget         float64
 	AdminChatIDs       []int64
 	AllowedUserChatIDs []int64
+	AllowedGroupIDs    []int64
 	MaxHistorySize     int
 	MaxHistoryTime     int
 	Vision             string
@@ -82,6 +83,7 @@ func Load() (*Config, error) {
 		UserBudget:         viper.GetFloat64("USER_BUDGET"),
 		AdminChatIDs:       getStrAsIntList("ADMIN_IDS"),
 		AllowedUserChatIDs: getStrAsIntList("ALLOWED_USER_IDS"),
+		AllowedGroupIDs:    getEnvAsIntList("ALLOWED_GROUP_IDS"),
 		MaxHistorySize:     viper.GetInt("MAX_HISTORY_SIZE"),
 		MaxHistoryTime:     viper.GetInt("MAX_HISTORY_TIME"),
 		Vision:             viper.GetString("VISION"),
