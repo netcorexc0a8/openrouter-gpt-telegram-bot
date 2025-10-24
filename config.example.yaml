@@ -35,11 +35,11 @@ vision_detail: low
 
 # API Limits Configuration
 # Maximum requests per minute
-api_requests_per_minute: 60
+api_requests_per_minute: 30
 # Maximum tokens per minute
-api_tokens_per_minute: 100000
+api_tokens_per_minute: 50000
 # Maximum tokens per day
-api_tokens_per_day: 1000000
+api_tokens_per_day: 500000
 # Maximum concurrent requests
-api_concurrent_requests: 5
+api_concurrent_requests: 3
 

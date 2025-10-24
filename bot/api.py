@@ -173,9 +173,9 @@ class OpenRouterAPI:
             payload.update(kwargs)
             
             # Maximum number of retries with different strategies for different error types
-            max_retries = 5
-            retry_delay = 1  # Initial delay in seconds
-            max_retry_delay = 60  # Max delay in seconds to prevent excessively long waits
+            max_retries = 3
+            retry_delay = 2  # Initial delay in seconds
+            max_retry_delay = 120  # Max delay in seconds to prevent excessively long waits
             
             for attempt in range(max_retries):
                 try:
@@ -220,11 +220,11 @@ class OpenRouterAPI:
                                                f"Tokens today: {self.tokens_today}/{self.tokens_per_day}")
                                 raise Exception("Rate limit exceeded. Please try again later.")
                             
-                            # Calculate delay with exponential backoff (1s, 2s, 4s, ...) with jitter
-                            delay = min(retry_delay * (2 ** attempt), max_retry_delay)
+                            # Calculate delay with more conservative exponential backoff (2s, 6s, 18s, ...) with jitter
+                            delay = min(retry_delay * (3 ** attempt), max_retry_delay)
                             # Add jitter to prevent thundering herd problem
                             import random
-                            delay = delay * (0.5 + random.random() * 0.5)
+                            delay = delay * (0.7 + random.random() * 0.3)
                             
                             logging.warning(f"Rate limit exceeded (429) on attempt {attempt + 1}, retrying after {delay:.2f}s. Current usage: "
                                            f"Requests this minute: {self.requests_this_minute}/{self.requests_per_minute}, "
@@ -244,7 +244,7 @@ class OpenRouterAPI:
                             # Use longer delay for 500 errors
                             delay = min(retry_delay * (3 ** attempt), max_retry_delay)
                             import random
-                            delay = delay * (0.5 + random.random() * 0.5)
+                            delay = delay * (0.7 + random.random() * 0.3)
                             
                             error_text = await response.aread()
                             logging.warning(f"API internal server error (500) on attempt {attempt + 1}, retrying after {delay:.2f}s. Error: {error_text.decode('utf-8', errors='ignore')}. Current usage: "
@@ -265,7 +265,7 @@ class OpenRouterAPI:
                             # Use moderate delay for gateway errors
                             delay = min(retry_delay * (2 ** attempt), max_retry_delay)
                             import random
-                            delay = delay * (0.5 + random.random() * 0.5)
+                            delay = delay * (0.7 + random.random() * 0.3)
                             
                             error_text = await response.aread()
                             logging.warning(f"API gateway error ({response.status_code}) on attempt {attempt + 1}, retrying after {delay:.2f}s. Error: {error_text.decode('utf-8', errors='ignore')}. Current usage: "
@@ -297,7 +297,7 @@ class OpenRouterAPI:
                             # Use exponential backoff for other errors
                             delay = min(retry_delay * (2 ** attempt), max_retry_delay)
                             import random
-                            delay = delay * (0.5 + random.random() * 0.5)
+                            delay = delay * (0.7 + random.random() * 0.3)
                             
                             logging.warning(f"API request failed with status {response.status_code} on attempt {attempt + 1}, retrying after {delay:.2f}s. Error: {error_message}. Current usage: "
                                            f"Requests this minute: {self.requests_this_minute}/{self.requests_per_minute}, "
@@ -319,7 +319,7 @@ class OpenRouterAPI:
                             # Retry for unexpected status codes with moderate delay
                             delay = min(retry_delay * (2 ** attempt), max_retry_delay)
                             import random
-                            delay = delay * (0.5 + random.random() * 0.5)
+                            delay = delay * (0.7 + random.random() * 0.3)
                             
                             logging.warning(f"Unexpected API response status {response.status_code} on attempt {attempt + 1}, retrying after {delay:.2f}s. Error: {error_message}. Current usage: "
                                            f"Requests this minute: {self.requests_this_minute}/{self.requests_per_minute}, "
@@ -339,7 +339,7 @@ class OpenRouterAPI:
                     # Use exponential backoff for timeout errors
                     delay = min(retry_delay * (2 ** attempt), max_retry_delay)
                     import random
-                    delay = delay * (0.5 + random.random() * 0.5)
+                    delay = delay * (0.7 + random.random() * 0.3)
                     
                     logging.warning(f"Request timeout on attempt {attempt + 1}, retrying after {delay:.2f}s: {str(e)}. Current usage: "
                                    f"Requests this minute: {self.requests_this_minute}/{self.requests_per_minute}, "
@@ -359,7 +359,7 @@ class OpenRouterAPI:
                     # Use exponential backoff for connection errors
                     delay = min(retry_delay * (2 ** attempt), max_retry_delay)
                     import random
-                    delay = delay * (0.5 + random.random() * 0.5)
+                    delay = delay * (0.7 + random.random() * 0.3)
                     
                     logging.warning(f"Request failed on attempt {attempt + 1} due to connection error, retrying after {delay:.2f}s: {str(e)}. Current usage: "
                                    f"Requests this minute: {self.requests_this_minute}/{self.requests_per_minute}, "
@@ -379,7 +379,7 @@ class OpenRouterAPI:
                     # Use exponential backoff for other exceptions
                     delay = min(retry_delay * (2 ** attempt), max_retry_delay)
                     import random
-                    delay = delay * (0.5 + random.random() * 0.5)
+                    delay = delay * (0.7 + random.random() * 0.3)
                     
                     logging.warning(f"Unexpected error on attempt {attempt + 1}, retrying after {delay:.2f}s: {str(e)}. Current usage: "
                                    f"Requests this minute: {self.requests_this_minute}/{self.requests_per_minute}, "

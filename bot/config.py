@@ -93,10 +93,10 @@ class Config:
     vision_details: str = ""
     stats_min_role: str = ""
     lang: str = "en"
-    api_requests_per_minute: int = 60
-    api_tokens_per_minute: int = 100000
-    api_tokens_per_day: int = 10000
-    api_concurrent_requests: int = 5
+    api_requests_per_minute: int = 30
+    api_tokens_per_minute: int = 50000
+    api_tokens_per_day: int = 500000
+    api_concurrent_requests: int = 3
 
 
 def parse_int_list(value: str) -> List[int]:
