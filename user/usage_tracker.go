@@ -262,21 +262,65 @@ func calculateTotalCost(chatCost map[string]float64) float64 {
 func (ut *UsageTracker) GetUsageFromApi(id string, conf *config.Config) error {
 	url := fmt.Sprintf("https://openrouter.ai/api/v1/generation?id=%s", id)
 
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		log.Printf("Error creating request for user %s: %v", ut.UserID, err)
-		return fmt.Errorf("error creating request: %w", err)
+	const maxRetries = 5
+	var resp *http.Response
+	var err error
+
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		req, err := http.NewRequest("GET", url, nil)
+		if err != nil {
+			log.Printf("Error creating request for user %s: %v", ut.UserID, err)
+			return fmt.Errorf("error creating request: %w", err)
+		}
+
+		bearer := fmt.Sprintf("Bearer %s", conf.OpenAIApiKey)
+		req.Header.Add("Authorization", bearer)
+
+		client := &http.Client{Timeout: 30 * time.Second}
+		resp, err = client.Do(req)
+		if err != nil {
+			log.Printf("Error sending request for user %s on attempt %d: %v", ut.UserID, attempt, err)
+			if attempt == maxRetries {
+				return fmt.Errorf("error sending request after %d attempts: %w", maxRetries, err)
+			}
+			// Exponential backoff: wait 1s, 2s, 4s, 8s, etc.
+			delay := time.Duration(1<<uint(attempt-1)) * time.Second
+			log.Printf("Retrying in %v...", delay)
+			time.Sleep(delay)
+			continue
+		}
+
+		// Check for rate limiting (429 status code)
+		if resp.StatusCode == 429 {
+			resp.Body.Close()
+			if attempt == maxRetries {
+				log.Printf("Max retries exceeded for 429 error for user %s: API rate limit exceeded", ut.UserID)
+				return fmt.Errorf("rate limit exceeded: max retries reached")
+			}
+			// Exponential backoff for rate limiting
+			delay := time.Duration(1<<uint(attempt-1)) * time.Second
+			log.Printf("Rate limited on attempt %d for user %s, retrying after %v", attempt, ut.UserID, delay)
+			time.Sleep(delay)
+			continue
+		}
+
+		// If we get a different error status, handle it
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			resp.Body.Close()
+			if attempt == maxRetries {
+				return fmt.Errorf("received non-success status code %d after %d attempts", resp.StatusCode, maxRetries)
+			}
+			// Exponential backoff for other errors too
+			delay := time.Duration(1<<uint(attempt-1)) * time.Second
+			log.Printf("Received status code %d on attempt %d for user %s, retrying after %v", resp.StatusCode, attempt, ut.UserID, delay)
+			time.Sleep(delay)
+			continue
+		}
+
+		// Success case - break out of retry loop
+		break
 	}
 
-	bearer := fmt.Sprintf("Bearer %s", conf.OpenAIApiKey)
-	req.Header.Add("Authorization", bearer)
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		log.Printf("Error sending request for user %s: %v", ut.UserID, err)
-		return fmt.Errorf("error sending request: %w", err)
-	}
 	defer resp.Body.Close()
 
 	var generationResponse GenerationResponse

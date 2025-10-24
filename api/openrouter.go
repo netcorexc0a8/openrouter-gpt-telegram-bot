@@ -4,7 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"strings"
+	tgbotapi "github.com/go-telegram-bot-api/v5"
 	"github.com/sashabaranov/go-openai"
 	"io"
 	"log"
@@ -93,11 +94,15 @@ func HandleChatGPTStreamResponse(bot *tgbotapi.BotAPI, client *openai.Client, me
 			fmt.Println("\nStream finished, response ID:", responseID)
 			user.AddMessage(openai.ChatMessageRoleUser, message.Text)
 			user.AddMessage(openai.ChatMessageRoleAssistant, messageText)
+			// For the final edit, we always want to update the message with the complete content
 			editMsg := tgbotapi.NewEditMessageText(message.Chat.ID, lastMessageID, tgbotapi.EscapeText(tgbotapi.ModeMarkdownV2, messageText))
 			editMsg.ParseMode = tgbotapi.ModeMarkdownV2
 			_, err := bot.Send(editMsg)
 			if err != nil {
-				log.Printf("Failed to edit message: %v", err)
+				// Check if the error is "message is not modified" and handle it gracefully
+				if !strings.Contains(err.Error(), "message is not modified") {
+					log.Printf("Failed to edit message: %v", err)
+				}
 			}
 			user.CurrentStream = nil
 			return responseID
@@ -129,7 +134,10 @@ func HandleChatGPTStreamResponse(bot *tgbotapi.BotAPI, client *openai.Client, me
 					editMsg.ParseMode = tgbotapi.ModeMarkdownV2
 					_, err := bot.Send(editMsg)
 					if err != nil {
-						log.Printf("Failed to edit message: %v", err)
+						// Check if the error is "message is not modified" and handle it gracefully
+						if !strings.Contains(err.Error(), "message is not modified") {
+							log.Printf("Failed to edit message: %v", err)
+						}
 						continue
 					}
 					lastSentTime = time.Now()

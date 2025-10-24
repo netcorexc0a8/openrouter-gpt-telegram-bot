@@ -4,13 +4,11 @@ FROM golang:1.23.4
 # Set the working directory inside the container
 WORKDIR /app
 
-# Copy go.mod and go.sum and install dependencies
+# Copy go.mod and install dependencies (go.sum will be updated by tidy)
 COPY go.mod ./
-COPY go.sum ./
-RUN go mod download
-
-# Copy the rest of the project files
 COPY . .
+RUN git config --global --unset credential.helper
+RUN go mod tidy
 
 # Build the application
 RUN go build -o /openrouter-gpt-telegram-bot
