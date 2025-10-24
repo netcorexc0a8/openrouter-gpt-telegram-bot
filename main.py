@@ -20,7 +20,7 @@ from telegram.ext import (
     ContextTypes
 )
 from bot.config import load_config
-from bot.api import OpenRouterAPI
+from bot.api import OpenRouterAPI, GoogleAIAPI
 from bot.user import UserManager
 from bot.localization import Localization
 import json
@@ -51,17 +51,26 @@ class TelegramBot:
         # Load configuration
         self.config = load_config(config_path)
         
-        # Initialize OpenRouter API client
-        self.api_client = OpenRouterAPI(
-            api_key=self.config.openai_api_key,
-            base_url=self.config.openai_base_url,
-            requests_per_minute=self.config.api_requests_per_minute,
-            tokens_per_minute=self.config.api_tokens_per_minute,
-            tokens_per_day=self.config.api_tokens_per_day,
-            concurrent_requests=self.config.api_concurrent_requests,
-            gcra_requests_limit=self.config.gcra_requests_limit,
-            gcra_tokens_limit=self.config.gcra_tokens_limit
-        )
+        # Initialize API client based on configuration
+        if self.config.api_type == "google_ai":
+            self.api_client = GoogleAIAPI(
+                api_key=self.config.google_ai_api_key,
+                requests_per_minute=self.config.api_requests_per_minute,
+                tokens_per_minute=self.config.api_tokens_per_minute,
+                tokens_per_day=self.config.api_tokens_per_day,
+                concurrent_requests=self.config.api_concurrent_requests
+            )
+        else:  # Default to OpenRouter
+            self.api_client = OpenRouterAPI(
+                api_key=self.config.openai_api_key,
+                base_url=self.config.openai_base_url,
+                requests_per_minute=self.config.api_requests_per_minute,
+                tokens_per_minute=self.config.api_tokens_per_minute,
+                tokens_per_day=self.config.api_tokens_per_day,
+                concurrent_requests=self.config.api_concurrent_requests,
+                gcra_requests_limit=self.config.gcra_requests_limit,
+                gcra_tokens_limit=self.config.gcra_tokens_limit
+            )
         
         # Initialize user manager
         self.user_manager = UserManager("user_data")
@@ -619,4 +628,12 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        # Check if there's already a running event loop
+        loop = asyncio.get_running_loop()
+        # If we're in an environment with a running loop (like Jupyter, some IDEs, etc.)
+        # we need to create a new task instead of using asyncio.run()
+        loop.create_task(main())
+    except RuntimeError:
+        # No running loop, so we can safely use asyncio.run()
+        asyncio.run(main())

@@ -50,6 +50,8 @@ class Config:
     Attributes:
         telegram_bot_token: Telegram bot token
         openai_api_key: OpenAI API key
+        google_ai_api_key: Google AI API key
+        api_type: Type of API to use ('openrouter' or 'google_ai')
         model: Model parameters configuration
         max_tokens: Maximum tokens for API requests
         bot_language: Language for the bot
@@ -75,6 +77,8 @@ class Config:
     """
     telegram_bot_token: str = ""
     openai_api_key: str = ""
+    google_ai_api_key: str = ""
+    api_type: str = "openrouter"
     model: ModelParameters = field(default_factory=ModelParameters)
     max_tokens: int = 2000
     bot_language: str = ""
@@ -138,8 +142,13 @@ def validate_config(config: Config) -> None:
     if not config.telegram_bot_token:
         errors.append("telegram_bot_token is required")
     
-    if not config.openai_api_key:
-        errors.append("openai_api_key is required")
+    # Validate API key based on api_type
+    if config.api_type == "openrouter" and not config.openai_api_key:
+        errors.append("openai_api_key is required when api_type is 'openrouter'")
+    elif config.api_type == "google_ai" and not config.google_ai_api_key:
+        errors.append("google_ai_api_key is required when api_type is 'google_ai'")
+    elif config.api_type not in ["openrouter", "google_ai"]:
+        errors.append(f"api_type must be either 'openrouter' or 'google_ai', got '{config.api_type}'")
     
     if not config.model.model_name:
         errors.append("model_name is required")
@@ -202,6 +211,8 @@ def load_config(path: str) -> Config:
     # Load environment variables
     telegram_bot_token = os.getenv("TELEGRAM_BOT_TOKEN", "")
     openai_api_key = os.getenv("API_KEY", "")
+    google_ai_api_key = os.getenv("GOOGLE_AI_API_KEY", "")
+    api_type = os.getenv("API_TYPE", "")
     model_from_env = os.getenv("MODEL", "")
     
     # Check if config file exists
@@ -230,6 +241,8 @@ def load_config(path: str) -> Config:
     config = Config(
         telegram_bot_token=telegram_bot_token,
         openai_api_key=openai_api_key,
+        google_ai_api_key=google_ai_api_key,
+        api_type=api_type if api_type else yaml_config.get("api_type", "openrouter"),
         model=model_params,
         max_tokens=yaml_config.get("max_tokens", 2000),
         bot_language=yaml_config.get("bot_language", ""),
