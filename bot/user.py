@@ -8,7 +8,7 @@ This module provides classes and functions for:
 - Implementing buffering and periodic saving of user data
 """
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Set
+from typing import List, Dict, Optional, Set, Any
 import json
 import os
 import threading
@@ -115,6 +115,7 @@ class User:
         last_message_time: The timestamp of the last message from the user
         history: The conversation history for the user
         usage: The usage statistics for the user
+        gcra_settings: GCRA rate limiting settings for the user {model: {"requests": {"limit": int, "window": int, "burst": int}, "tokens": {"limit": int, "window": int, "burst": int}}}
         _lock: Internal lock for thread safety
     """
     user_id: str
@@ -123,26 +124,27 @@ class User:
     last_message_time: Optional[float] = None
     history: History = field(default_factory=History)
     usage: UserUsage = field(default_factory=UserUsage)
+    gcra_settings: Dict[str, Any] = field(default_factory=dict)
     _lock: threading.Lock = field(default_factory=threading.Lock, init=False)
-
+    
     def add_message_to_history(self, role: str, content: str) -> None:
         """
         Add a message to the user's history.
         """
         self.history.add_message(role, content)
-
+    
     def get_history(self) -> List[Message]:
         """
         Get the user's message history.
         """
         return self.history.get_messages()
-
+    
     def reset_history(self) -> None:
         """
         Reset the user's message history.
         """
         self.history.clear_history()
-
+    
     def update_usage(self, cost: float) -> None:
         """
         Update the user's usage statistics with a new cost.
@@ -152,7 +154,7 @@ class User:
             if self.usage.usage_history.chat_cost is None:
                 self.usage.usage_history.chat_cost = {}
             self.usage.usage_history.chat_cost[today] = self.usage.usage_history.chat_cost.get(today, 0) + cost
-
+    
     def get_current_cost(self, period: str) -> float:
         """
         Get the current cost based on the specified period ('daily', 'monthly', 'total').
@@ -160,7 +162,7 @@ class User:
         with self._lock:
             today = datetime.now().strftime("%Y-%m-%d")
             cost = 0.0
-
+    
             if period == "daily":
                 cost = self._calculate_cost_for_day(today)
             elif period == "monthly":
@@ -171,8 +173,47 @@ class User:
                 import logging
                 logging.warning(f"Invalid period: {period}. Valid periods are 'daily', 'monthly', 'total'.")
                 return 0.0
-
+    
             return cost
+    
+    def set_gcra_settings(self, model: str, setting_type: str, limit: int, window: int = 60, burst: int = 0):
+        """
+        Set GCRA rate limiting settings for a specific model.
+        
+        Args:
+            model: The model name
+            setting_type: Either "requests" or "tokens"
+            limit: The maximum number of requests/tokens allowed
+            window: The time window in seconds (default: 60 seconds)
+            burst: The burst allowance (default: 0)
+        """
+        if model not in self.gcra_settings:
+            self.gcra_settings[model] = {"requests": {}, "tokens": {}}
+        
+        self.gcra_settings[model][setting_type] = {
+            "limit": limit,
+            "window": window,
+            "burst": burst
+        }
+    
+    def get_gcra_settings(self, model: str, setting_type: str = None):
+        """
+        Get GCRA rate limiting settings for a specific model.
+        
+        Args:
+            model: The model name
+            setting_type: Either "requests" or "tokens" or None for all settings
+            
+        Returns:
+            The GCRA settings for the model and setting type, or None if not set
+        """
+        if model not in self.gcra_settings:
+            return None
+            
+        if setting_type is None:
+            return self.gcra_settings[model]
+        else:
+            return self.gcra_settings[model].get(setting_type)
 
     def _calculate_cost_for_day(self, day: str) -> float:
         """
@@ -307,7 +348,8 @@ class UserManager:
                 user_id=data.get('user_id', user_id),
                 user_name=data.get('user_name', ''),
                 system_prompt=data.get('system_prompt', ''),
-                last_message_time=data.get('last_message_time')
+                last_message_time=data.get('last_message_time'),
+                gcra_settings=data.get('gcra_settings', {})  # Load GCRA settings
             )
             
             # Reconstruct history
@@ -359,7 +401,8 @@ class UserManager:
                     'usage_history': {
                         'chat_cost': user.usage.usage_history.chat_cost
                     }
-                }
+                },
+                'gcra_settings': user.gcra_settings  # Save GCRA settings
             }
             
             with open(file_path, 'w', encoding='utf-8') as f:

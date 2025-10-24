@@ -5,6 +5,8 @@ import logging
 from typing import List, Dict, Any, AsyncGenerator, Optional
 from datetime import datetime, timedelta
 
+from bot.rate_limiter import RateLimiter, RateLimitConfig, LimitType
+
 
 class OpenRouterAPI:
     """
@@ -33,12 +35,10 @@ class OpenRouterAPI:
         self.tokens_per_day = tokens_per_day
         self.concurrent_requests = concurrent_requests
         
-        # Rate limiting tracking
-        self.requests_this_minute = 0
-        self.tokens_this_minute = 0
-        self.tokens_today = 0
-        self.last_request_time = datetime.now()
-        self.today = datetime.now().date()
+        # Initialize rate limiter
+        self.rate_limiter = RateLimiter()
+        # Set default configurations for rate limiting
+        self.set_default_rate_limits()
         
         # For tracking concurrent requests
         self.semaphore = asyncio.Semaphore(concurrent_requests)
@@ -51,11 +51,84 @@ class OpenRouterAPI:
             timeout=30.0  # Set a reasonable timeout for API requests
         )
     
-    async def _check_rate_limits(self, estimated_tokens: int = 0) -> bool:
+    def set_gcra_config_from_dict(self, user_id: str, model: str, limit_type: str, config_dict: dict):
         """
-        Check if the current request would exceed API rate limits.
+        Set GCRA configuration from a dictionary (used for loading from config file).
         
         Args:
+            user_id: The user ID
+            model: The model name
+            limit_type: Either "requests" or "tokens"
+            config_dict: Dictionary with "limit", "window", and "burst" keys
+        """
+        from bot.rate_limiter import LimitType, RateLimitConfig
+        
+        if not config_dict:
+            return
+            
+        limit = config_dict.get("limit")
+        window = config_dict.get("window", 60)  # Default to 60 seconds
+        burst = config_dict.get("burst", 0)     # Default to 0 burst allowance
+        
+        if limit is not None:
+            rate_limit_config = RateLimitConfig(limit=limit, window=window, burst=burst)
+            limit_type_enum = LimitType.REQUESTS if limit_type == "requests" else LimitType.TOKENS
+            self.rate_limiter.set_config(user_id, model, limit_type_enum, rate_limit_config)
+    
+    def set_default_rate_limits(self):
+        """
+        Set default rate limit configurations for the API.
+        """
+        # Default request rate limit: requests_per_minute
+        request_config = RateLimitConfig(
+            limit=self.requests_per_minute,
+            window=60,  # 60 seconds
+            burst=5     # Allow small burst
+        )
+        # Default token rate limit: tokens_per_minute
+        token_config = RateLimitConfig(
+            limit=self.tokens_per_minute,
+            window=60,  # 60 seconds
+            burst=self.tokens_per_minute // 10  # Allow 10% of limit as burst
+        )
+        
+        # Set default configurations for user ID "default" and model "default"
+        self.rate_limiter.set_config("default", "default", LimitType.REQUESTS, request_config)
+        self.rate_limiter.set_config("default", "default", LimitType.TOKENS, token_config)
+    
+    def set_gcra_configs(self):
+        """
+        Set GCRA configurations from the provided config dictionaries.
+        """
+        # Set request rate limits for different models
+        for model, config in self.gcra_requests_limit.items():
+            self.set_gcra_config_from_dict("default", model, "requests", config)
+        
+        # Set token rate limits for different models
+        for model, config in self.gcra_tokens_limit.items():
+            self.set_gcra_config_from_dict("default", model, "tokens", config)
+    
+    def set_user_gcra_configs(self, user_id: str, gcra_settings: Dict[str, Any]):
+        """
+        Set GCRA configurations for a specific user from their settings dict.
+        
+        Args:
+            user_id: The user ID
+            gcra_settings: The user's GCRA settings dictionary
+        """
+        for model, settings in gcra_settings.items():
+            if "requests" in settings:
+                self.set_gcra_config_from_dict(user_id, model, "requests", settings["requests"])
+            if "tokens" in settings:
+                self.set_gcra_config_from_dict(user_id, model, "tokens", settings["tokens"])
+    
+    async def _check_rate_limits(self, user_id: str, model: str, estimated_tokens: int = 0) -> bool:
+        """
+        Check if the current request would exceed API rate limits using GCRA.
+        
+        Args:
+            user_id: The ID of the user making the request
+            model: The model being used for the request
             estimated_tokens: Estimated number of tokens for the upcoming request
             
         Returns:
@@ -63,47 +136,51 @@ class OpenRouterAPI:
         """
         now = datetime.now()
         
-        # Reset counters if we've moved to a new minute
-        if now - self.last_request_time > timedelta(minutes=1):
-            self.requests_this_minute = 0
-            self.tokens_this_minute = 0
-            self.last_request_time = now
-        
         # Reset daily counter if we've moved to a new day
         if now.date() != self.today:
             self.tokens_today = 0
             self.today = now.date()
         
-        # Check if we're within all limits
-        within_requests_limit = self.requests_this_minute < self.requests_per_minute
-        within_tokens_per_minute_limit = self.tokens_this_minute + estimated_tokens <= self.tokens_per_minute
-        within_tokens_per_day_limit = self.tokens_today + estimated_tokens <= self.tokens_per_day
+        # Check request rate limit using GCRA
+        request_allowed, request_delay = self.rate_limiter.allow_request(user_id, model, 1)
+        if not request_allowed:
+            logging.warning(f"Request rate limit exceeded for user {user_id} with model {model}. "
+                           f"Delay needed: {request_delay:.2f}s")
+            return False
         
-        return within_requests_limit and within_tokens_per_minute_limit and within_tokens_per_day_limit
+        # Check token rate limit using GCRA
+        token_allowed, token_delay = self.rate_limiter.allow_tokens(user_id, model, estimated_tokens)
+        if not token_allowed:
+            logging.warning(f"Token rate limit exceeded for user {user_id} with model {model}. "
+                           f"Delay needed: {token_delay:.2f}s")
+            return False
+        
+        # Check daily token limit (this is still a simple counter-based limit)
+        within_tokens_per_day_limit = self.tokens_today + estimated_tokens <= self.tokens_per_day
+        if not within_tokens_per_day_limit:
+            logging.warning(f"Daily token limit exceeded for user {user_id}. "
+                           f"Tokens today: {self.tokens_today}/{self.tokens_per_day}")
+            return False
+        
+        return True
     
-    async def _update_usage(self, tokens_used: int):
+    async def _update_usage(self, user_id: str, model: str, tokens_used: int):
         """
-        Update the usage counters after a successful API request.
+        Update the usage counters after a successful API request using GCRA.
         
         Args:
+            user_id: The ID of the user making the request
+            model: The model being used for the request
             tokens_used: Number of tokens used in the request
         """
         now = datetime.now()
         
-        # Reset counters if we've moved to a new minute
-        if now - self.last_request_time > timedelta(minutes=1):
-            self.requests_this_minute = 0
-            self.tokens_this_minute = 0
-            self.last_request_time = now
-        
         # Reset daily counter if we've moved to a new day
         if now.date() != self.today:
             self.tokens_today = 0
             self.today = now.date()
         
-        # Update counters
-        self.requests_this_minute += 1
-        self.tokens_this_minute += tokens_used
+        # Update daily token counter (still needed for daily limit)
         self.tokens_today += tokens_used
     
     async def send_chat_completion(
@@ -116,6 +193,7 @@ class OpenRouterAPI:
         frequency_penalty: float = 0.0,
         presence_penalty: float = 0.0,
         stream: bool = True,
+        user_id: str = "default",  # Added user_id parameter for rate limiting
         **kwargs
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """
@@ -130,6 +208,7 @@ class OpenRouterAPI:
             frequency_penalty: Frequency penalty (default: 0.0)
             presence_penalty: Presence penalty (default: 0.0)
             stream: Whether to stream the response (default: True)
+            user_id: The ID of the user making the request (default: "default")
             **kwargs: Additional parameters to pass to the API
              
         Yields:
@@ -143,11 +222,8 @@ class OpenRouterAPI:
             estimated_tokens += self.tokens_per_minute // 100  # Default estimate if max_tokens not specified
         
         # Check rate limits before making the request
-        if not await self._check_rate_limits(estimated_tokens):
-            logging.warning(f"API rate limits would be exceeded. Request blocked. "
-                           f"Requests this minute: {self.requests_this_minute}/{self.requests_per_minute}, "
-                           f"Tokens this minute: {self.tokens_this_minute}/{self.tokens_per_minute}, "
-                           f"Tokens today: {self.tokens_today}/{self.tokens_per_day}")
+        if not await self._check_rate_limits(user_id, model, estimated_tokens):
+            logging.warning(f"API rate limits would be exceeded for user {user_id} with model {model}. Request blocked.")
             raise Exception("API rate limits exceeded. Please try again later.")
         
         # Acquire semaphore for concurrent request limit
@@ -209,8 +285,8 @@ class OpenRouterAPI:
                                         continue
                             
                             # Update usage after successful request
-                            await self._update_usage(tokens_used if tokens_used > 0 else estimated_tokens)
-                            break  # Exit the retry loop if successful
+                            await self._update_usage(user_id, model, tokens_used if tokens_used > 0 else estimated_tokens)
+                            break # Exit the retry loop if successful
                         elif response.status_code == 429:
                             # Handle rate limit errors with exponential backoff
                             if attempt == max_retries - 1:

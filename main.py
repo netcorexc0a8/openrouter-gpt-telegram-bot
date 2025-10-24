@@ -58,7 +58,9 @@ class TelegramBot:
             requests_per_minute=self.config.api_requests_per_minute,
             tokens_per_minute=self.config.api_tokens_per_minute,
             tokens_per_day=self.config.api_tokens_per_day,
-            concurrent_requests=self.config.api_concurrent_requests
+            concurrent_requests=self.config.api_concurrent_requests,
+            gcra_requests_limit=self.config.gcra_requests_limit,
+            gcra_tokens_limit=self.config.gcra_tokens_limit
         )
         
         # Initialize user manager
@@ -324,6 +326,10 @@ class TelegramBot:
             for msg in history_messages:
                 api_messages.append({"role": msg.role, "content": msg.content})
             
+            # Apply user's GCRA settings to the API client if they exist
+            if user.gcra_settings:
+                self.api_client.set_user_gcra_configs(str(user_id), user.gcra_settings)
+            
             # Send request to OpenRouter API
             full_response = ""
             response_message = await message.reply_text("...") # Initial response to show bot is working
@@ -335,7 +341,8 @@ class TelegramBot:
                 temperature=self.config.model.temperature,
                 top_p=self.config.model.top_p,
                 frequency_penalty=self.config.model.frequency_penalty,
-                presence_penalty=self.config.model.presence_penalty
+                presence_penalty=self.config.model.presence_penalty,
+                user_id=str(user_id)  # Pass user_id for rate limiting
             ):
                 if not self.active_streams.get(user_id, False):
                     # If stream was stopped, break the loop
@@ -465,6 +472,10 @@ class TelegramBot:
                         for msg in history_messages:
                             api_messages.append({"role": msg.role, "content": msg.content})
                     
+                    # Apply user's GCRA settings to the API client if they exist
+                    if user.gcra_settings:
+                        self.api_client.set_user_gcra_configs(str(user_id), user.gcra_settings)
+                    
                     # Send request to OpenRouter API
                     full_response = ""
                     response_message = await update.message.reply_text("...") # Initial response to show bot is working
@@ -476,7 +487,8 @@ class TelegramBot:
                         temperature=self.config.model.temperature,
                         top_p=self.config.model.top_p,
                         frequency_penalty=self.config.model.frequency_penalty,
-                        presence_penalty=self.config.model.presence_penalty
+                        presence_penalty=self.config.model.presence_penalty,
+                        user_id=str(user_id)  # Pass user_id for rate limiting
                     ):
                         if not self.active_streams.get(user_id, False):
                             # If stream was stopped, break the loop

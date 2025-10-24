@@ -8,7 +8,7 @@ This module provides classes and functions for:
 - Parsing comma-separated integer lists
 """
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 import yaml
 import os
 
@@ -97,6 +97,9 @@ class Config:
     api_tokens_per_minute: int = 50000
     api_tokens_per_day: int = 500000
     api_concurrent_requests: int = 3
+    # GCRA rate limiting configuration (for advanced rate limiting)
+    gcra_requests_limit: Dict[str, Any] = field(default_factory=dict)  # {model_name: {"limit": int, "window": int, "burst": int}}
+    gcra_tokens_limit: Dict[str, Any] = field(default_factory=dict)    # {model_name: {"limit": int, "window": int, "burst": int}}
 
 
 def parse_int_list(value: str) -> List[int]:
@@ -250,6 +253,10 @@ def load_config(path: str) -> Config:
         api_tokens_per_day=yaml_config.get("api_tokens_per_day", 1000000),
         api_concurrent_requests=yaml_config.get("api_concurrent_requests", 5)
     )
+    
+    # Load GCRA rate limiting configurations if present
+    config.gcra_requests_limit = yaml_config.get("gcra_requests_limit", {})
+    config.gcra_tokens_limit = yaml_config.get("gcra_tokens_limit", {})
     
     # Validate the configuration
     validate_config(config)
