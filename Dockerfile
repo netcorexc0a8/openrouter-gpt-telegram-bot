@@ -1,19 +1,10 @@
-# Используем официальный образ Golang как базовый
-FROM golang:1.23.4
+FROM python:3.13-slim
 
-# Устанавливаем рабочую директорию внутри контейнера
 WORKDIR /app
 
-# Копируем go.mod и go.sum и устанавливаем зависимости
-COPY go.mod ./
-COPY go.sum ./
-RUN go mod download
+COPY requirements.txt .
+RUN pip install -r requirements.txt
 
-# Копируем остальные файлы проекта
 COPY . .
 
-# Собираем приложение
-RUN go build -o /openrouter-gpt-telegram-bot
-
-# Указываем команду для запуска приложения
-CMD ["/openrouter-gpt-telegram-bot"]
+CMD ["python", "main.py"]

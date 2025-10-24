@@ -24,6 +24,7 @@ Before you begin, ensure you have the following:
         - Get your Telegram API Token from [@BotFather](https://t.me/BotFather).
     - Set `ADMIN_USER_IDS` to specify Telegram user IDs of admins if you want to enable admin commands.
     - Set `ALLOWED_TELEGRAM_USER_IDS` to specify which Telegram user IDs are allowed to interact with the bot or leave blank to allow all users (Don't forget to set up Guest Budget).
+    - Set `ALLOWED_GROUP_IDS` to restrict bot interaction to specific group chats. Provide a comma-separated list of Telegram group IDs. The bot will only respond in these specified groups. Example: `-1001234567890, -1009876543210`.
 
 3. **Set up user permissions and budgets in the `.env` file:**
     - Define budgets for users and guests using `USER_BUDGETS` and `GUEST_BUDGET` both variables can be set to 0.
@@ -54,8 +55,7 @@ docker compose up
 - - `/reset`: Clears the user history and can reset the system prompt to a default or specified state.
 - - `/stats`: Provides current usage statistics and message count.
 - - `/stop`: Terminates any active AI response streams.
-
-
+- **Group Chat Mentions:** The bot now responds in group chats only when explicitly mentioned (`@botusername`).
 ## Acknowledgments
 - This project was inspired by and has used resources from:
     - [n3d1117/chatgpt-telegram-bot](https://github.com/n3d1117/chatgpt-telegram-bot)
