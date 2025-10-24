@@ -588,21 +588,7 @@ class TelegramBot:
         
         # Start the bot
         logger.info("Starting bot...")
-        await self.application.initialize()
-        await self.application.start()
-        await self.application.updater.start_polling()
-        
-        # Keep the bot running
-        try:
-            # Run forever until interrupted
-            while True:
-                await asyncio.sleep(1)
-        except KeyboardInterrupt:
-            logger.info("Bot stopped by user")
-        finally:
-            await self.application.updater.stop()
-            await self.application.stop()
-            await self.application.shutdown()
+        await self.application.run_polling()
 
 
 # Main function to run the bot
